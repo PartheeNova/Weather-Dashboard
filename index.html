@@ -1,0 +1,135 @@
+ <!DOCTYPE html>
+<html>
+<head>
+    <title>Sensor Data Time-Series Dashboard</title>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .chart-container { margin-bottom: 40px; }
+        h1 { text-align: center; color: #333; }
+        .error-message, .loading-message { 
+            text-align: center; 
+            margin: 50px auto; 
+            padding: 20px; 
+            max-width: 600px;
+            border-radius: 5px;
+        }
+        .loading-message { color: #888; }
+        .error-message { color: white; background-color: #d9534f; border: 1px solid #c9302c; }
+    </style>
+    <script type="text/javascript">
+        // ---------------------------------------------------------------------------------------------------
+        // !!! STEP 1: VERIFY THESE THREE VARIABLES !!!
+        // ---------------------------------------------------------------------------------------------------
+        const SPREADSHEET_ID = '1JoYSMPCY7lTHTc7EcHZ5UiNuBBlLQ57cqoXx0-8Zwb4'; // <--- PASTE YOUR SPREADSHEET ID HERE
+        const SHEET_NAME = 'Sheet1';                       // <--- Use the exact name of the sheet
+        const CHART_TITLE = 'IoT Sensor Data Live Feed';
+        // ---------------------------------------------------------------------------------------------------
+        
+        // Load the Visualization API and the corechart package.
+        google.charts.load('current', {'packages':['corechart']});
+
+        // Set a callback to run when the Google Visualization API is loaded.
+        google.charts.setOnLoadCallback(drawChart);
+
+        function displayError(message) {
+            document.getElementById('chart_div').innerHTML = `
+                <div class="error-message">
+                    <strong>CRITICAL ERROR!</strong><br><br>
+                    ${message}
+                    <p style="margin-top: 15px; font-size: 0.8em;">
+                        (Check the browser's F12 Console for technical details)
+                    </p>
+                </div>
+            `;
+            // Hide the refresh button if we can't load data
+            document.getElementById('refresh_button').style.display = 'none';
+        }
+
+        function drawChart() {
+            try {
+                // Construct the Google Visualization API query URL
+                const queryUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?sheet=${SHEET_NAME}`;
+                
+                const query = new google.visualization.Query(queryUrl);
+
+                // Define the Query String for Time (A), Amb Temp (B), Amb Humidity (C)
+                const queryString = 'SELECT A, B, C LABEL A "Time", B "Ambient Temperature (°C)", C "Ambient Humidity (%)"';
+                query.setQuery(queryString);
+
+                // Send the query and set a callback for when the data is received
+                query.send(handleQueryResponse);
+
+            } catch (e) {
+                // Catch any JavaScript errors that occur before the query is sent
+                displayError(`An unhandled JavaScript error occurred. Message: ${e.message}`);
+            }
+        }
+
+        function handleQueryResponse(response) {
+            if (response.isError()) {
+                // Handle errors returned by the Google Sheet API
+                displayError(`API Query Error: ${response.getMessage()}. Details: ${response.getDetailedMessage() || 'Check Data Types/Sharing.'}`);
+                return;
+            }
+
+            try {
+                const data = response.getDataTable();
+
+                // If no data rows are returned but no official error, it's likely empty sheet
+                if (data.getNumberOfRows() === 0) {
+                    displayError('The Google Sheet returned no data rows. Please ensure your sheet is populated.');
+                    return;
+                }
+                
+                // --- Chart Options ---
+                const options = {
+                    title: CHART_TITLE,
+                    curveType: 'function',
+                    legend: { position: 'bottom' },
+                    height: 500,
+                    hAxis: {
+                        title: 'Time',
+                        // Note: If you continue to have date issues, try removing the 'format' line.
+                        format: 'MMM d, HH:mm', 
+                        titleTextStyle: { color: '#333' }
+                    },
+                    vAxis: {
+                        title: 'Sensor Value',
+                        minValue: 0
+                    }
+                };
+                
+                // --- Draw the Line Chart ---
+                const chart = new google.visualization.LineChart(document.getElementById('chart_div'));
+                chart.draw(data, options);
+                
+                // Show the refresh button
+                document.getElementById('refresh_button').style.display = 'block';
+
+            } catch (e) {
+                // Catch any JavaScript errors during chart drawing
+                displayError(`Chart Drawing Error. Message: ${e.message}.`);
+            }
+        }
+        
+    </script>
+</head>
+<body>
+    <h1><span id="chart_title">Sensor Data Time-Series Dashboard</span></h1>
+    <div style="text-align: center; margin-bottom: 20px;">
+        <button id="refresh_button" onclick="drawChart()" style="display: none; padding: 10px 20px; font-size: 16px; cursor: pointer;">
+            Refresh Data
+        </button>
+    </div>
+    
+    <div id="chart_div" class="chart-container">
+        <div class="loading-message">Loading data from Google Sheet...</div>
+    </div>
+
+    <p style="text-align: center; font-size: 0.9em; color: #666;">
+        Data is fetched directly from the Google Sheet and is refreshed on page load or by clicking the refresh button.
+    </p>
+
+</body>
+</html>
